@@ -1,0 +1,57 @@
+cronExpression: '*/10 * * * * ? *'
+logging:
+    level:
+        org:
+            hibernate:
+                SQL: DEBUG
+                type:
+                    descriptor:
+                        sql:
+                            BasicBinder: TRACE
+            springframework:
+                cloud:
+                    task: DEBUG
+org:
+    quartz:
+        dataSource:
+            myDS:
+                URL: jdbc:oracle:thin:@localhost:21152:orclcdb
+                driver: oracle.jdbc.driver.OracleDriver
+                maxConnections: 5
+                user: exedi
+                password: exedi
+                validationQuery: select 1
+        jobStore:
+            class: org.quartz.impl.jdbcjobstore.JobStoreTX
+            dataSource: myDS
+            driverDelegateClass: org.quartz.impl.jdbcjobstore.StdJDBCDelegate
+            isClustered: false
+            tablePrefix: 'QRTZ_   '
+            useProperties: false
+scheduler:
+    enabled: true
+spring:
+    application:
+        name: batch purge
+    batch:
+        job:
+            enabled: false
+    datasource:
+        driverClassName: oracle.jdbc.driver.OracleDriver
+        url: jdbc:oracle:thin:@localhost:21152:orclcdb
+        username: exedi
+        password: exedi
+    jpa:
+        database-platform: org.hibernate.dialect.Oracle12cDialect
+        generate-ddl: true
+        hibernate:
+            naming:
+                physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        properties:
+            hibernate:
+                dialect: org.hibernate.dialect.Oracle12cDialect
+        show-sql: true
+    quartz:
+        jdbc:
+            comment-prefix: '#'
+        job-store-type: jdbc
