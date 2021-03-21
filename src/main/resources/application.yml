@@ -1,4 +1,5 @@
 cronExpression: '*/10 * * * * ? *'
+DB_ENC: '1'
 logging:
     level:
         org:
@@ -15,7 +16,7 @@ org:
     quartz:
         dataSource:
             myDS:
-                URL: jdbc:oracle:thin:@localhost:21152:orclcdb
+                URL: jdbc:oracle:thin:@localhost:21152/xe
                 driver: oracle.jdbc.driver.OracleDriver
                 maxConnections: 5
                 user: exedi
@@ -38,7 +39,7 @@ spring:
             enabled: false
     datasource:
         driverClassName: oracle.jdbc.driver.OracleDriver
-        url: jdbc:oracle:thin:@localhost:21152:orclcdb
+        url: jdbc:oracle:thin:@localhost:21152/xe
         username: exedi
         password: exedi
     jpa:

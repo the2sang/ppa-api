@@ -1,23 +1,29 @@
 package io.spring.batch.configuration;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import javax.sql.DataSource;
 
+import io.spring.batch.PPATableUpdateClassifier;
 import io.spring.batch.domain.*;
 
+import io.spring.batch.reader.TaxEmailBillInfoDataReader;
+import io.spring.batch.writer.TbTaxBillInfoEncTableWriter;
+import io.spring.batch.writer.preparedStatmementSetter.TbTaxBillInfoEncSetter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
-import org.springframework.batch.item.database.BeanPropertyItemSqlParameterSourceProvider;
-import org.springframework.batch.item.database.JdbcBatchItemWriter;
-import org.springframework.batch.item.database.JdbcPagingItemReader;
-import org.springframework.batch.item.database.Order;
+import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.database.*;
+import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.item.database.support.MySqlPagingQueryProvider;
 import org.springframework.batch.item.database.support.OraclePagingQueryProvider;
+import org.springframework.batch.item.support.ClassifierCompositeItemWriter;
+import org.springframework.batch.item.support.CompositeItemProcessor;
+import org.springframework.batch.item.support.CompositeItemWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,78 +46,105 @@ public class JobConfiguration {
   @Autowired
   public DataSource dataSource;
 
-  public final int READER_FETCH_SIZE = 10;
+  @Bean
+  public JdbcPagingItemReader<TaxEmailBillInfoVO> pagingTaxEmailBillInfoItemReader() {
+    TaxEmailBillInfoDataReader dataReader = new TaxEmailBillInfoDataReader();
+    dataReader.setDataSource(this.dataSource);
+
+    return dataReader.getPagingReader();
+
+  }
 
   @Bean
-  public JdbcPagingItemReader<CustomerInput> pagingItemReader() {
-    JdbcPagingItemReader<CustomerInput> reader = new JdbcPagingItemReader<>();
+  JdbcBatchItemWriter<TaxEmailBillInfoVO> taxEmailBillInfoItemOutputWriter() {
 
-    reader.setDataSource(this.dataSource);
-    reader.setFetchSize(10);
-    reader.setRowMapper(new CustomerRowMapper());
-
-    //MySqlPagingQueryProvider queryProvider = new MySqlPagingQueryProvider();
-    OraclePagingQueryProvider queryProvider = new OraclePagingQueryProvider();
-    queryProvider.setSelectClause("ID, FIRSTNAME, LASTNAME");
-    queryProvider.setFromClause("from CUSTOMER_INPUT");
+    return new JdbcBatchItemWriterBuilder<TaxEmailBillInfoVO>()
+            .itemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>())
+            .sql("INSERT INTO TAX_EMAIL_BILL_INFO_OUTPUT (issue_id, issue_day, issue_dt) VALUES (:issueId, :issueDay, :issueDt)")
+            .dataSource(this.dataSource)
+            .build();
+  }
 
 
-    Map<String, Order> sortKeys = new HashMap<>(1);
 
-    sortKeys.put("ID", Order.ASCENDING);
 
-    queryProvider.setSortKeys(sortKeys);
+  @Bean
+  public CompositeItemProcessor compositeProcessor() {
+    List<ItemProcessor> delegates = new ArrayList<>(2);
+    delegates.add(processor1());
+    delegates.add(processor2());
 
-    reader.setQueryProvider(queryProvider);
+    CompositeItemProcessor processor = new CompositeItemProcessor<>();
 
-    return reader;
+    processor.setDelegates(delegates);
+
+    return processor;
+  }
+
+  public ItemProcessor<TaxEmailBillInfoVO, String> processor1() {
+    return TaxEmailBillInfoVO::getIssueId;
+  }
+
+  public ItemProcessor<String, String> processor2() {
+    return name -> "안녕하세요. "+ name + "입니다.";
   }
 
 
   @Bean
-  public JdbcPagingItemReader<TaxEmailBillInfoVO> pagingTaxSaleTaxInvoiceInfoItemReader() {
-    JdbcPagingItemReader<TaxEmailBillInfoVO> reader = new JdbcPagingItemReader<>();
+  JdbcBatchItemWriter<TaxEmailBillInfoVO> tbTaxBillInfoEncWriter() {
+    TbTaxBillInfoEncTableWriter writer = new TbTaxBillInfoEncTableWriter();
+    JdbcBatchItemWriter<TaxEmailBillInfoVO> databaseItemWriter = new JdbcBatchItemWriter<>();
+    databaseItemWriter.setDataSource(this.dataSource);
 
-    reader.setDataSource(this.dataSource);
-    reader.setFetchSize(READER_FETCH_SIZE);
-    reader.setRowMapper(new TaxEmailBillInfoRowMapper());
+    databaseItemWriter.setSql(writer.getWriteSQL());
 
-    OraclePagingQueryProvider queryProvider = new OraclePagingQueryProvider();
-    queryProvider.setSelectClause("*");
-    queryProvider.setFromClause("from TAX_EMAIL_BILL_INFO");
+    ItemPreparedStatementSetter<TaxEmailBillInfoVO> valueSetter =
+            new TbTaxBillInfoEncSetter();
+    databaseItemWriter.setItemPreparedStatementSetter(valueSetter);
+
+    return databaseItemWriter;
+  }
+
+  @Bean
+  JdbcBatchItemWriter<TaxEmailBillInfoVO> taxEmailBillInfoEndingUpdate() {
+    return new JdbcBatchItemWriterBuilder<TaxEmailBillInfoVO>()
+            .dataSource(dataSource)
+            .beanMapped()
+            .sql("UPDATE TAX_EMAIL_BILL_INFO SET MAIL_STATUS_CODE = '01' WHERE ISSUE_ID = :issueId")
+            .build();
+  }
+
+  @Bean
+  ItemWriter<TaxEmailBillInfoVO> taxEmailBillInfoCustomWriter() {
+    return items -> {
+      for (TaxEmailBillInfoVO item : items) {
+        System.out.println(item);
+      }
+    };
+  }
 
 
-    Map<String, Order> sortKeys = new HashMap<>(1);
+  //PPA 배치처리를 위한 9개 테이블 Insert 및 Update
+  @Bean
+  public CompositeItemWriter<TaxEmailBillInfoVO> compositeItemWriter() {
+    CompositeItemWriter<TaxEmailBillInfoVO> compositeItemWriter = new CompositeItemWriter<>();
+    compositeItemWriter.setDelegates(Arrays.asList(tbTaxBillInfoEncWriter(), taxEmailBillInfoEndingUpdate()));
 
-    sortKeys.put("ID", Order.ASCENDING);
-
-    queryProvider.setSortKeys(sortKeys);
-
-    reader.setQueryProvider(queryProvider);
-
-    return reader;
-
+    return compositeItemWriter;
   }
 
 
   @Bean
-  public JdbcBatchItemWriter<CustomerOutput> customerItemWriter() {
-    JdbcBatchItemWriter<CustomerOutput> itemWriter = new JdbcBatchItemWriter<>();
-
-    itemWriter.setDataSource(this.dataSource);
-    itemWriter.setSql("INSERT INTO CUSTOMER_OUTPUT(FIRSTNAME,LASTNAME) VALUES (:firstName, :lastName)");
-    itemWriter.setItemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider());
-    itemWriter.afterPropertiesSet();
-    return itemWriter;
-  }
-
-  @Bean
-  public Step step1() {
+  public Step step1()  {
     log.info("STEP-1 시작...");
     return stepBuilderFactory.get("step1")
-      .<CustomerInput, CustomerOutput>chunk(10)
-      .reader(pagingItemReader())
-      .writer(customerItemWriter())
+      .<TaxEmailBillInfoVO, TaxEmailBillInfoVO>chunk(1)
+      .reader(pagingTaxEmailBillInfoItemReader())
+            //.processor(compositeProcessor())
+      .writer(compositeItemWriter())
+ //           .writer(taxEmailBillInfoEndingUpdate())
+         //   .stream(tbTaxBillInfoEncWriter())
+        //    .stream(taxEmailBillInfoEndingUpdate())
       .build();
   }
 
@@ -119,24 +152,20 @@ public class JobConfiguration {
   public Step step2() {
     log.info("STEP-2 시작...");
     return stepBuilderFactory.get("step2")
-            .<CustomerInput, CustomerOutput>chunk(10)
-            .reader(pagingItemReader())
-            .writer(customerItemWriter())
+            .<TaxEmailBillInfoVO, TaxEmailBillInfoVO>chunk(1)
+            .reader(pagingTaxEmailBillInfoItemReader())
+            .writer(taxEmailBillInfoEndingUpdate())
             .build();
   }
+
+
 
   @Bean
   public Job job() {
     return jobBuilderFactory.get("job")
+            .preventRestart()
             .start(step1())
-            .on("FAILED")
-            .end()
-            .from(step1())
-            .on("*")
-            .to(step2())
-            .on("FAILED")
-            .end()
-            .end()
+ //         .next(step2())
             .build();
   }
 }
