@@ -4,7 +4,6 @@ import java.util.*;
 
 import javax.sql.DataSource;
 
-import io.spring.batch.PPATableUpdateClassifier;
 import io.spring.batch.domain.*;
 
 import io.spring.batch.reader.TaxEmailBillInfoDataReader;
@@ -19,9 +18,6 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.*;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
-import org.springframework.batch.item.database.support.MySqlPagingQueryProvider;
-import org.springframework.batch.item.database.support.OraclePagingQueryProvider;
-import org.springframework.batch.item.support.ClassifierCompositeItemWriter;
 import org.springframework.batch.item.support.CompositeItemProcessor;
 import org.springframework.batch.item.support.CompositeItemWriter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,8 +62,6 @@ public class JobConfiguration {
   }
 
 
-
-
   @Bean
   public CompositeItemProcessor compositeProcessor() {
     List<ItemProcessor> delegates = new ArrayList<>(2);
@@ -99,7 +93,7 @@ public class JobConfiguration {
     databaseItemWriter.setSql(writer.getWriteSQL());
 
     ItemPreparedStatementSetter<TaxEmailBillInfoVO> valueSetter =
-            new TbTaxBillInfoEncSetter();
+            new TbTaxBillInfoEncSetter(this.dataSource);
     databaseItemWriter.setItemPreparedStatementSetter(valueSetter);
 
     return databaseItemWriter;

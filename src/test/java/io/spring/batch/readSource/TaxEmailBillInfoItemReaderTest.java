@@ -145,7 +145,7 @@ public class TaxEmailBillInfoItemReaderTest {
             databaseItemWriter.setSql(writer.getWriteSQL());
 
             ItemPreparedStatementSetter<TaxEmailBillInfoVO> valueSetter =
-                    new TbTaxBillInfoEncSetter();
+                    new TbTaxBillInfoEncSetter(this.dataSource);
             databaseItemWriter.setItemPreparedStatementSetter(valueSetter);
 
             return databaseItemWriter;

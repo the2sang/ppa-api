@@ -2,15 +2,26 @@ package io.spring.batch.writer.preparedStatmementSetter;
 
 import io.spring.batch.domain.TaxEmailBillInfoVO;
 import io.spring.batch.domain.TbTaxBillInfoEncVO;
+import lombok.AllArgsConstructor;
+import lombok.Setter;
 import org.springframework.batch.item.database.ItemPreparedStatementSetter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
+import javax.sql.DataSource;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.UUID;
 
+@AllArgsConstructor
 final public class TbTaxBillInfoEncSetter implements ItemPreparedStatementSetter<TaxEmailBillInfoVO> {
+
+    @Autowired
+    @Setter
+    private DataSource dataSource;
+
 
     @Override
     public void setValues(TaxEmailBillInfoVO vo, PreparedStatement pstmt) throws SQLException {
@@ -18,6 +29,11 @@ final public class TbTaxBillInfoEncSetter implements ItemPreparedStatementSetter
 
         Timestamp timestamp = new Timestamp(System.currentTimeMillis());
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+
+
+        //make uuid test
+        String genUUID = getMakeUuid(vo.getIssueId());
+        System.out.println("UUID 생성 테스트:" + genUUID);
 
         pstmt.setString(idx++, "2"); //ioCode   //1-매출, 2-매입
         pstmt.setString(idx++, vo.getIssueDay());
@@ -136,5 +152,22 @@ final public class TbTaxBillInfoEncSetter implements ItemPreparedStatementSetter
         }
 
     }
+
+    public String getMakeUuid(String uuid) {
+
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(this.dataSource);
+
+        StringBuffer sb = new StringBuffer();
+        //sb.append("SELECT '"+uuid.substring(0,8)+"' || LPAD(SQ_UUID.NEXTVAL, 8, 0) FROM DUAL");  //DB에 시퀀스 실제 추가 후 해제
+
+        sb.append("SELECT '"+ uuid.substring(0,8)+ "' || LPAD(BATCH_JOB_SEQ.NEXTVAL, 1, 0) FROM DUAL");  // 테스트 목적으로 임의로 설정
+
+        return jdbcTemplate.queryForObject(sb.toString(), String.class);
+
+    }
+
+
+
+
 
 }
